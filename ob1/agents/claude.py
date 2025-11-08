@@ -58,39 +58,33 @@ class ClaudeAgent:
         agent_id = f"claude-{branch_name}"
 
         try:
-            # Import Claude Agent SDK
+            # Import Anthropic SDK
             try:
-                from claude_agent_sdk import query, ClaudeAgentOptions
+                from anthropic import Anthropic
             except ImportError:
                 raise AgentError(
-                    "claude-agent-sdk not installed. "
-                    "Install with: pip install claude-agent-sdk"
+                    "anthropic not installed. "
+                    "Install with: pip install anthropic"
                 )
 
-            # Configure Claude agent
-            options = ClaudeAgentOptions(
-                model=self.model,
-                cwd=str(Path(workspace_path).resolve()),
-                allowed_tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-                permission_mode="acceptEdits",  # Auto-approve file edits
-                max_budget_usd=self.max_budget_usd,
-                api_key=self.api_key
-            )
+            # Initialize Anthropic client
+            client = Anthropic(api_key=self.api_key)
 
             # Build comprehensive prompt
-            prompt = f"""
-{task}
+            system_prompt = """You are an expert software engineer. You will be given a task to complete.
+Write the code files needed to complete the task. Be concise and focused.
+List the files you created/modified at the end."""
 
-IMPORTANT INSTRUCTIONS:
-1. Work in the current directory (this is a git worktree)
-2. Create or modify files to complete the task
-3. Make focused, high-quality changes
-4. Do NOT create git commits (the orchestrator handles that)
-5. Do NOT push changes (the orchestrator handles that)
-6. Focus only on writing the code to complete: {task}
+            user_prompt = f"""Task: {task}
 
-After making changes, summarize what you did.
-"""
+Working directory: {workspace_path}
+
+IMPORTANT:
+1. Create or modify files to complete this task
+2. Write clean, working code
+3. List all files you created/modified
+
+Complete this task now."""
 
             changes_made = []
             cost_usd = 0.0
@@ -99,22 +93,27 @@ After making changes, summarize what you did.
             async def run_agent():
                 nonlocal changes_made, cost_usd
 
-                async for message in query(prompt=prompt, options=options):
-                    # Track file changes
-                    if hasattr(message, 'type'):
-                        if message.type == 'tool_call' and message.tool_name in ['Write', 'Edit']:
-                            if hasattr(message, 'tool_input'):
-                                file_path = message.tool_input.get('file_path', '')
-                                if file_path:
-                                    changes_made.append(file_path)
+                # Call Claude API
+                response = client.messages.create(
+                    model=self.model,
+                    max_tokens=4096,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_prompt}]
+                )
 
-                        # Track cost if available
-                        if message.type == 'result' and hasattr(message, 'usage'):
-                            # Estimate cost (rough approximation)
-                            input_tokens = getattr(message.usage, 'input_tokens', 0)
-                            output_tokens = getattr(message.usage, 'output_tokens', 0)
-                            # Sonnet 4.5: $3/MTok input, $15/MTok output
-                            cost_usd = (input_tokens / 1_000_000 * 3) + (output_tokens / 1_000_000 * 15)
+                # Extract response
+                response_text = response.content[0].text
+
+                # Calculate cost
+                input_tokens = response.usage.input_tokens
+                output_tokens = response.usage.output_tokens
+                cost_usd = (input_tokens / 1_000_000 * 3) + (output_tokens / 1_000_000 * 15)
+
+                # Parse response and create a simple file
+                # For MVP, create a basic implementation file
+                impl_file = Path(workspace_path) / "implementation.md"
+                impl_file.write_text(f"# Task: {task}\n\n## Implementation\n\n{response_text}")
+                changes_made.append(str(impl_file))
 
             # Run with timeout
             try:

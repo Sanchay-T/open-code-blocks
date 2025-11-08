@@ -7,7 +7,7 @@ name = "ob1"
 version = "0.1.0"
 description = "Parallel AI SWE Agent Orchestrator"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
     {name = "Your Name", email = "your.email@example.com"}
@@ -17,6 +17,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -27,7 +28,7 @@ dependencies = [
     "httpx>=0.27.0",
     "gitpython>=3.1.40",
     "pygithub>=2.1.1",
-    "claude-agent-sdk>=0.1.0",
+    "anthropic>=0.18.0",
     "rich>=13.7.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
