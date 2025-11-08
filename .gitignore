@@ -10,4 +10,4 @@ node_modules/
 .coverage
 .pytest_cache/
 .mypy_cache/
-worktrees/*/.venv
+worktrees/
