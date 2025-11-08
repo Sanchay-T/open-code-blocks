@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .git_ops import is_repo, current_branch, has_remote, add_worktree, GitError
+from .orchestrator import RunConfig, run_orchestrator
 
 
 app = typer.Typer(add_completion=False, help="OB1: run k AI agents in parallel and open PRs")
@@ -64,15 +65,32 @@ def run(
     providers: str = typer.Option("claude", help="Comma-separated provider list"),
     base: str = typer.Option("main", help="Base ref for branches"),
     scope: Optional[str] = typer.Option(None, help="Allowed path (glob) for changes"),
+    target: Optional[str] = typer.Option(None, help="Target repo URL; defaults to current repo"),
+    env_file: Optional[Path] = typer.Option(None, help="Path to env file with tokens"),
     dry_run: bool = typer.Option(False, help="Plan actions without applying"),
 ):
-    """Run k agents in parallel (stub for now)."""
-    # Placeholder orchestration; real implementation to follow
-    console.print(
-        f"[bold]Would run[/bold] k={k} providers={providers} on base={base} with scope={scope} and message=\n{message}"
+    """Run k agents in parallel (initial implementation)."""
+    provider_list = [p.strip() for p in providers.split(",") if p.strip()]
+    if not provider_list:
+        raise typer.BadParameter("At least one provider must be specified", param_hint="providers")
+
+    config = RunConfig(
+        message=message,
+        k=k,
+        providers=provider_list,
+        base_branch=base,
+        scope=scope,
+        target_url=target,
+        dry_run=dry_run,
+        env_file=env_file,
     )
+
+    try:
+        asyncio.run(run_orchestrator(config, console))
+    except Exception as exc:  # pylint: disable=broad-except
+        console.print(f"[red]Run failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
 
 
 if __name__ == "__main__":
     app()
-

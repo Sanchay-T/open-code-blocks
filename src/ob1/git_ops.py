@@ -41,7 +41,13 @@ def has_remote(name: str = "origin", cwd: Optional[Path] = None) -> bool:
         return False
 
 
+def get_origin_url(cwd: Optional[Path] = None, remote: str = "origin") -> str:
+    try:
+        return run_git("config", f"remote.{remote}.url", cwd=cwd)
+    except GitError as e:
+        raise GitError(f"Remote '{remote}' not found: {e}") from e
+
+
 def add_worktree(path: Path, branch: str, base_ref: str = "main", cwd: Optional[Path] = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     run_git("worktree", "add", "-b", branch, str(path), base_ref, cwd=cwd)
-
