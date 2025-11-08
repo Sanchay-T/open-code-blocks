@@ -77,16 +77,20 @@ class ClaudeProvider(AgentProvider):
 
     def _log_event(self, agent_name: str, message: object) -> None:
         if isinstance(message, AssistantMessage):
-            content_preview = []
+            preview = None
             for block in message.content:
-                if isinstance(block, TextBlock):
-                    content_preview.append(block.text[:80].replace("\n", " "))
-                elif isinstance(block, ToolUseBlock):
-                    content_preview.append(f"tool:{block.name}")
-                elif isinstance(block, ToolResultBlock):
-                    content_preview.append(f"tool-result:{block.tool_name}")
-            preview = " | ".join(content_preview)
-            self._console.print(f"[{agent_name}] {preview}")
+                if isinstance(block, TextBlock) and block.text.strip():
+                    first_line = block.text.strip().splitlines()[0]
+                    preview = first_line[:120] + ("…" if len(first_line) > 120 else "")
+                    break
+                if isinstance(block, ToolUseBlock):
+                    preview = f"🔧 tool:{block.name}"
+                    break
+                if isinstance(block, ToolResultBlock):
+                    preview = f"📦 tool-result:{block.tool_name}"
+                    break
+            if preview:
+                self._console.print(f"[{agent_name}] {preview}")
         else:
             self._console.print(f"[{agent_name}] {message.__class__.__name__}")
 
@@ -104,4 +108,3 @@ class ClaudeProvider(AgentProvider):
         if isinstance(event, SystemMessage):
             return asdict(event)
         return {"repr": repr(event)}
-
