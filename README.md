@@ -3,8 +3,18 @@
 Parallel AI SWE orchestration CLI (`ob1`) plus supporting assets for the OB1 coding assignment.
 
 ## Repo Layout
-- **This repo** – houses the Python CLI, scripts, docs.
-- **Target repo (`Sanchay-T/ob1-sandbox`)** – Vite/React sandbox where agents open PRs.
+- **This repo** – houses the Python CLI, docs, and examples.
+- **Target repo (`Sanchay-T/ob1-sandbox`)** – Vite/React sandbox where agents open PRs (Stage 1 output + Stage 2 QA workflow live there).
+
+```
+docs/
+  guides/          # Quick-starts, integration notes, exec summary
+  research/        # Provider/API research notes
+examples/          # Standalone pytest/playwright/GitHub Actions samples
+src/ob1/           # CLI source
+tests/             # Unit tests for guardrails/context
+run_stage1.txt     # Copy/paste command that spawns 3 Claude agents
+```
 
 ## Quick Start
 ```bash
@@ -13,6 +23,11 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 cp .env.example .env  # then add GITHUB_TOKEN, CLAUDE_API_KEY, etc.
+
+# Tip: .env auto-discovery
+# ob1 will look for the nearest .env (and fall back to `gh auth token`),
+# so once you drop your keys into /path/to/open-code-blocks/.env you can
+# run commands from any subdirectory without re-exporting secrets.
 
 # Claude Agent SDK prerequisites (Node CLI)
 npm install -g @anthropic-ai/claude-code
@@ -24,7 +39,7 @@ ob1 run -m "Build a frontend login page" -k 3 --target https://github.com/Sancha
 # Claude probe helper
 ob1 claude-ping "Explain the repo" --system-prompt "You are concise."
 
-# Run 3 Claude agents against the sandbox repo
+# Run 3 Claude agents against the sandbox repo (see run_stage1.txt)
 ob1 run -m "Build a responsive login page" -k 3 \
   --target https://github.com/Sanchay-T/ob1-sandbox.git \
   --base main \
@@ -46,5 +61,6 @@ pytest
 - Agent prompts include repo context + scope guardrails; only files matching `--scope` are allowed.
 - Each Claude run stores its transcript under `.ob1/transcripts/<branch>.json` for auditability.
 - `pytest` covers the scope parsing, context gathering, and change guard rails.
-- Secrets loaded from `.env` via `pydantic-settings` (never committed).
+- Secrets loaded from `.env` via `pydantic-settings`; if missing, `gh auth token` is used automatically.
 - `.ob1/` holds transient clones/worktrees; safe to delete between runs.
+- GitHub Actions in `ob1-sandbox` installs deps, records the Playwright login video, uploads artifacts, and calls `ob1 qa` (using `CLAUDE_API_KEY` repo secret) so every PR receives an AI-authored QA review.

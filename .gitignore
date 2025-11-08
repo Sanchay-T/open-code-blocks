@@ -13,3 +13,5 @@ node_modules/
 .mypy_cache/
 worktrees/
 .ob1/
+.claude/
+.claudeignore

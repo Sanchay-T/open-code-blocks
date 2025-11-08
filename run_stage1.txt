@@ -1,0 +1,4 @@
+ob1 run -m "Build a login page" -k 3 \
+  --target https://github.com/Sanchay-T/ob1-sandbox.git \
+  --base main \
+  --scope "frontend/**"
