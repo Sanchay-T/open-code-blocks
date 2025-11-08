@@ -1,23 +1,30 @@
 from __future__ import annotations
 
-import os
+import asyncio
+import shutil
+from asyncio.subprocess import PIPE
 from pathlib import Path
+from typing import Optional
 
-import httpx
 from rich.console import Console
 
 from .base import AgentProvider, ProviderResult
-
-
-CURSOR_API_BASE = "https://api.cursor.com/v1"
+from ..diff_utils import extract_diff_block, save_transcript
 
 
 class CursorProvider(AgentProvider):
+    """Runs the Cursor CLI in non-interactive (print) mode to obtain a diff."""
+
     name = "cursor"
 
-    def __init__(self, api_key: str, console: Console) -> None:
-        self._api_key = api_key
+    def __init__(self, console: Console, cli_path: Optional[str] = None) -> None:
         self._console = console
+        self._cli_path = cli_path or shutil.which("cursor-agent")
+        if not self._cli_path:
+            raise RuntimeError(
+                "cursor-agent CLI not found. Install via `curl https://cursor.com/install -fsS | bash` or remove 'cursor'"
+                " from the --providers list."
+            )
 
     async def run(
         self,
@@ -28,35 +35,32 @@ class CursorProvider(AgentProvider):
         worktree: Path,
         repo_root: Path,
     ) -> ProviderResult:
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "User-Agent": "ob1-cursor-provider",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "prompt": prompt,
-            "mode": "diff",
-            "metadata": {
-                "agent": agent_name,
-                "branch": branch,
-            },
-        }
+        prompt_payload = (
+            "You are Cursor CLI running in --print mode. Respond ONLY with a fenced ```diff block describing the edits."
+            " Do not add commentary outside the diff.\n\n"
+            f"{prompt}"
+        )
+        proc = await asyncio.create_subprocess_exec(  # noqa: S603
+            self._cli_path,
+            "-p",
+            prompt_payload,
+            "--output-format",
+            "text",
+            cwd=str(worktree),
+            stdout=PIPE,
+            stderr=PIPE,
+        )
+        stdout_bytes, stderr_bytes = await proc.communicate()
+        stdout = stdout_bytes.decode("utf-8", errors="ignore")
+        stderr = stderr_bytes.decode("utf-8", errors="ignore")
 
-        async with httpx.AsyncClient(base_url=CURSOR_API_BASE, timeout=180) as client:
-            resp = await client.post("/agent/diff", json=payload, headers=headers)
+        if proc.returncode != 0:
+            raise RuntimeError(f"cursor-agent failed: {stderr or stdout}")
 
-        if resp.status_code != 200:
-            raise RuntimeError(f"Cursor API error: {resp.status_code} {resp.text}")
-
-        data = resp.json()
-        diff_text = data.get("diff") or data.get("patch")
+        diff_text = extract_diff_block(stdout)
         if not diff_text:
-            raise RuntimeError("Cursor response missing diff text")
+            raise RuntimeError("cursor-agent did not return a unified diff. Ensure `--output-format text` is supported.")
 
-        transcript_dir = repo_root / ".ob1" / "transcripts"
-        transcript_dir.mkdir(parents=True, exist_ok=True)
-        transcript_path = transcript_dir / f"{branch.replace('/', '_')}_cursor.json"
-        transcript_path.write_text(resp.text)
-
-        self._console.print(f"[{agent_name}] Cursor returned diff with {len(diff_text.splitlines())} lines")
+        transcript_path = save_transcript(repo_root, branch, "cursor", stdout)
+        self._console.print(f"[{agent_name}] Cursor diff contains {len(diff_text.splitlines())} lines")
         return ProviderResult(transcript_path=transcript_path, diff_text=diff_text)

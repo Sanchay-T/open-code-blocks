@@ -37,6 +37,9 @@ cp .env.example .env  # then add GITHUB_TOKEN, CLAUDE_API_KEY, etc.
 # Claude Agent SDK prerequisites (Node CLI)
 npm install -g @anthropic-ai/claude-code
 
+# Cursor CLI prerequisite (diff mode)
+curl https://cursor.com/install -fsS | bash   # installs `cursor-agent`
+
 # Diagnostics
 ob1 doctor
 ob1 run -m "Build a frontend login page" -k 3 --target https://github.com/Sanchay-T/ob1-sandbox.git
@@ -73,7 +76,7 @@ pytest
 | Provider | Env Variable(s)                     | Description                                    |
 |----------|--------------------------------------|------------------------------------------------|
 | Claude   | `CLAUDE_API_KEY`                     | Claude Agent SDK with repo-aware tool access   |
-| Cursor   | `CURSOR_API_KEY`                     | Cursor Cloud API returning unified diffs       |
+| Cursor   | *(CLI binary `cursor-agent`)*        | Runs Cursor CLI in non-interactive diff mode (falls back to Claude if missing) |
 | Codex    | `OPENAI_API_KEY` or `CODEX_CLI_KEY`  | GPT‑4o Codex chat completions (diff contract)  |
 
 ## Notes

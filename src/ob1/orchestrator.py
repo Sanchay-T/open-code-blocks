@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 import textwrap
 from dataclasses import dataclass
 from datetime import datetime
@@ -240,29 +241,16 @@ def _build_providers(provider_names: List[str], settings, console: Console) -> d
     providers: dict[str, AgentProvider] = {}
     for name in set(provider_names):
         if name == "claude":
-            api_key = settings.claude_api_key
-            if not api_key:
-                raise RuntimeError("CLAUDE_API_KEY is required for provider 'claude'")
-            providers[name] = ClaudeProvider(
-                api_key=api_key,
-                console=console,
-                allowed_tools=[
-                    "Task",
-                    "Read",
-                    "Write",
-                    "Edit",
-                    "NotebookEdit",
-                    "Glob",
-                    "Grep",
-                    "Bash",
-                    "BashOutput",
-                ],
-            )
+            providers[name] = _build_claude_provider(settings, console)
         elif name == "cursor":
-            api_key = settings.cursor_api_key
-            if not api_key:
-                raise RuntimeError("CURSOR_API_KEY is required for provider 'cursor'")
-            providers[name] = CursorProvider(api_key=api_key, console=console)
+            cli_path = shutil.which("cursor-agent")
+            if cli_path:
+                providers[name] = CursorProvider(console=console, cli_path=cli_path)
+            else:
+                console.print(
+                    "[yellow]cursor-agent CLI not found; falling back to Claude for the 'cursor' provider.[/yellow]"
+                )
+                providers[name] = _build_claude_provider(settings, console)
         elif name == "codex":
             api_key = settings.openai_api_key
             if not api_key:
@@ -271,3 +259,24 @@ def _build_providers(provider_names: List[str], settings, console: Console) -> d
         else:
             raise RuntimeError(f"Unsupported provider '{name}'")
     return providers
+
+
+def _build_claude_provider(settings, console: Console) -> ClaudeProvider:
+    api_key = settings.claude_api_key
+    if not api_key:
+        raise RuntimeError("CLAUDE_API_KEY is required for Claude-based providers")
+    return ClaudeProvider(
+        api_key=api_key,
+        console=console,
+        allowed_tools=[
+            "Task",
+            "Read",
+            "Write",
+            "Edit",
+            "NotebookEdit",
+            "Glob",
+            "Grep",
+            "Bash",
+            "BashOutput",
+        ],
+    )
