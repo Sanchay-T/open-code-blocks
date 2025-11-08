@@ -10,7 +10,12 @@ from typing import List, Optional
 from rich.console import Console
 from rich.table import Table
 
+from .change_guard import ChangeGuardError, ensure_changes_within_scope, list_changed_files
+from .context_engine import RepoContext as RepoPromptContext, build_prompt_text, gather_repo_context
 from .github_api import GitHubAPI
+from .path_filters import parse_scope
+from .providers.base import AgentProvider, ProviderResult
+from .providers.claude import ClaudeProvider
 from .repo_manager import RepoContext, TargetRepoManager
 from .settings import get_settings
 from .git_ops import GitError, run_git
@@ -22,7 +27,7 @@ class RunConfig:
     k: int
     providers: List[str]
     base_branch: str
-    scope: Optional[str]
+    scope_patterns: List[str]
     target_url: Optional[str]
     dry_run: bool
     env_file: Optional[Path]
@@ -35,6 +40,7 @@ class AgentResult:
     status: str
     pr_url: Optional[str] = None
     error: Optional[str] = None
+    transcript_path: Optional[Path] = None
 
 
 async def run_orchestrator(config: RunConfig, console: Console) -> None:
@@ -59,6 +65,8 @@ async def run_orchestrator(config: RunConfig, console: Console) -> None:
         if not config.dry_run:
             gh_client = GitHubAPI(settings.github_token)  # type: ignore[arg-type]
 
+        provider_instances = _build_providers(config.providers, settings, console)
+
         tasks = []
         for idx in range(config.k):
             provider = config.providers[idx % len(config.providers)]
@@ -69,6 +77,8 @@ async def run_orchestrator(config: RunConfig, console: Console) -> None:
                     _run_single_agent(
                         agent_name=agent_name,
                         branch=branch,
+                        provider_name=provider,
+                        provider=provider_instances[provider],
                         config=config,
                         repo_ctx=repo_ctx,
                         repo_manager=repo_manager,
@@ -105,6 +115,8 @@ async def run_orchestrator(config: RunConfig, console: Console) -> None:
 async def _run_single_agent(
     agent_name: str,
     branch: str,
+    provider_name: str,
+    provider: AgentProvider,
     config: RunConfig,
     repo_ctx: RepoContext,
     repo_manager: TargetRepoManager,
@@ -113,22 +125,40 @@ async def _run_single_agent(
     worktree_path: Optional[Path] = None
     try:
         worktree_path = await asyncio.to_thread(repo_manager.create_worktree, branch)
-        await asyncio.to_thread(_write_trivial_change, worktree_path, agent_name, config.message)
-        await asyncio.to_thread(_commit_all, worktree_path, f"feat: {agent_name} exploration")
 
+        prompt_context = await asyncio.to_thread(
+            gather_repo_context,
+            worktree_path,
+            config.scope_patterns,
+        )
+        prompt_text = build_prompt_text(config.message, config.scope_patterns, prompt_context)
+        provider_result: Optional[ProviderResult] = None
         if config.dry_run:
             status = "dry-run"
             pr_url = None
         else:
+            provider_result = await provider.run(
+                agent_name=agent_name,
+                branch=branch,
+                prompt=prompt_text,
+                worktree=worktree_path,
+                repo_root=repo_ctx.root,
+            )
+            files = await asyncio.to_thread(list_changed_files, worktree_path)
+            if not files:
+                raise ChangeGuardError("Agent did not modify any files")
+            await asyncio.to_thread(ensure_changes_within_scope, files, config.scope_patterns)
+            await asyncio.to_thread(_commit_all, worktree_path, f"feat: {agent_name} - {config.message}")
             await asyncio.to_thread(repo_manager.push_branch, branch)
             assert gh_client is not None
             pr_title = f"{agent_name}: {config.message[:60]}"
             pr_body = textwrap.dedent(
                 f"""
-                Automated agent PR.
+                Automated agent PR from `{provider_name}`.
 
                 - Agent: `{agent_name}`
                 - Task: {config.message}
+                - Transcript saved locally at: {provider_result.transcript_path if provider_result else 'n/a'}
                 """
             ).strip()
             pr_url = await gh_client.create_pull_request(
@@ -140,30 +170,19 @@ async def _run_single_agent(
             )
             status = "success"
 
-        return AgentResult(agent_name=agent_name, branch=branch, status=status, pr_url=pr_url)
+        return AgentResult(
+            agent_name=agent_name,
+            branch=branch,
+            status=status,
+            pr_url=pr_url,
+            transcript_path=provider_result.transcript_path if provider_result else None,
+        )
 
     except Exception as exc:  # pylint: disable=broad-except
         return AgentResult(agent_name=agent_name, branch=branch, status="failed", error=str(exc))
     finally:
         if worktree_path is not None:
             await asyncio.to_thread(repo_manager.remove_worktree, branch, worktree_path)
-
-
-def _write_trivial_change(worktree: Path, agent_name: str, message: str) -> None:
-    notes_dir = worktree / "frontend" / "ob1-agent-notes"
-    notes_dir.mkdir(parents=True, exist_ok=True)
-    file_path = notes_dir / f"{agent_name}.md"
-    content = textwrap.dedent(
-        f"""
-        # Agent {agent_name}
-
-        Task:
-        {message}
-
-        Timestamp: {datetime.utcnow().isoformat()}Z
-        """
-    ).strip() + "\n"
-    file_path.write_text(content)
 
 
 def _commit_all(worktree: Path, message: str) -> None:
@@ -194,3 +213,30 @@ def _render_summary(results: List[AgentResult], console: Console) -> None:
         )
 
     console.print(table)
+
+
+def _build_providers(provider_names: List[str], settings, console: Console) -> dict[str, AgentProvider]:
+    providers: dict[str, AgentProvider] = {}
+    for name in set(provider_names):
+        if name == "claude":
+            api_key = settings.claude_api_key
+            if not api_key:
+                raise RuntimeError("CLAUDE_API_KEY is required for provider 'claude'")
+            providers[name] = ClaudeProvider(
+                api_key=api_key,
+                console=console,
+                allowed_tools=[
+                    "Task",
+                    "Read",
+                    "Write",
+                    "Edit",
+                    "NotebookEdit",
+                    "Glob",
+                    "Grep",
+                    "Bash",
+                    "BashOutput",
+                ],
+            )
+        else:
+            raise RuntimeError(f"Unsupported provider '{name}'")
+    return providers

@@ -12,7 +12,7 @@ class GitError(RuntimeError):
 def run_git(*args: str, cwd: Optional[Path] = None) -> str:
     try:
         out = subprocess.check_output(["git", *args], cwd=cwd, stderr=subprocess.STDOUT)
-        return out.decode().strip()
+        return out.decode().rstrip()
     except subprocess.CalledProcessError as e:
         raise GitError(e.output.decode().strip()) from e
 

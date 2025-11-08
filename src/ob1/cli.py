@@ -10,6 +10,8 @@ from rich.table import Table
 
 from .git_ops import is_repo, current_branch, has_remote, add_worktree, GitError
 from .orchestrator import RunConfig, run_orchestrator
+from .claude_probe import claude_ping as claude_ping_runner
+from .path_filters import parse_scope
 
 
 app = typer.Typer(add_completion=False, help="OB1: run k AI agents in parallel and open PRs")
@@ -74,12 +76,14 @@ def run(
     if not provider_list:
         raise typer.BadParameter("At least one provider must be specified", param_hint="providers")
 
+    scope_patterns = parse_scope(scope)
+
     config = RunConfig(
         message=message,
         k=k,
         providers=provider_list,
         base_branch=base,
-        scope=scope,
+        scope_patterns=scope_patterns,
         target_url=target,
         dry_run=dry_run,
         env_file=env_file,
@@ -89,6 +93,33 @@ def run(
         asyncio.run(run_orchestrator(config, console))
     except Exception as exc:  # pylint: disable=broad-except
         console.print(f"[red]Run failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+
+@app.command("claude-ping")
+def claude_ping_command(
+    prompt: str = typer.Argument(..., help="Prompt to send to Claude"),
+    tools: str = typer.Option("", help="Comma-separated allowed tools (e.g. 'Read,Write,Bash')"),
+    permission: str = typer.Option(
+        "default", help="Permission mode: default, acceptEdits, or bypassPermissions"
+    ),
+    cwd: Optional[Path] = typer.Option(None, help="Working directory for Claude (defaults to repo root)"),
+    system_prompt: Optional[str] = typer.Option(None, help="Optional system prompt override"),
+    env_file: Optional[Path] = typer.Option(None, help="Custom .env file with CLAUDE_API_KEY"),
+):
+    """Send a one-off prompt to Claude Agent SDK and stream the raw transcript."""
+    allowed_tools = [tool.strip() for tool in tools.split(",") if tool.strip()]
+    try:
+        claude_ping_runner(
+            prompt=prompt,
+            allowed_tools=allowed_tools,
+            permission_mode=permission,
+            cwd=cwd,
+            system_prompt=system_prompt,
+            env_file=env_file,
+            console=console,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
         raise typer.Exit(1) from exc
 
 
