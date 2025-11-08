@@ -16,7 +16,8 @@ dependencies = [
   "pydantic-settings>=2.4.0",
   "rich>=13.7.1",
   "unidiff>=0.7.5",
-  "claude-agent-sdk>=0.1.0"
+  "claude-agent-sdk>=0.1.0",
+  "openai>=1.43.0"
 ]
 
 [project.optional-dependencies]

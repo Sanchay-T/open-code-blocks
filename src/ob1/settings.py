@@ -38,7 +38,8 @@ class Settings(BaseSettings):
     github_token: Optional[str] = Field(None, alias="GITHUB_TOKEN")
     claude_api_key: Optional[str] = Field(None, alias="CLAUDE_API_KEY")
     cursor_api_key: Optional[str] = Field(None, alias="CURSOR_API_KEY")
-    codex_api_key: Optional[str] = Field(None, alias="CODEX_API_KEY")
+    openai_api_key: Optional[str] = Field(None, alias="OPENAI_API_KEY")
+    codex_cli_key: Optional[str] = Field(None, alias="CODEX_CLI_KEY")
 
 
 @lru_cache()
@@ -52,4 +53,6 @@ def get_settings(env_file: Optional[Path] = None) -> Settings:
         token = _gh_cli_token()
         if token:
             settings.github_token = token
+    if not settings.openai_api_key and settings.codex_cli_key:
+        settings.openai_api_key = settings.codex_cli_key
     return settings
