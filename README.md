@@ -14,6 +14,7 @@ examples/          # Standalone pytest/playwright/GitHub Actions samples
 src/ob1/           # CLI source
 tests/             # Unit tests for guardrails/context
 run_stage1.txt     # Copy/paste command that spawns 3 Claude agents
+                   # (now defaults to Claude + Cursor + Codex)
 ```
 
 ## Quick Start

@@ -27,3 +27,18 @@ dev = [
 
 [project.scripts]
 ob1 = "ob1.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ob1"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/ob1",
+  "pyproject.toml",
+  "README.md",
+  "LICENSE",
+  "run_stage1.txt",
+  "docs",
+  "examples",
+  "tests",
+]
