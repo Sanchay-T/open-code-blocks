@@ -73,10 +73,11 @@ class Config(BaseSettings):
         if not v:
             raise ValueError("GITHUB_TOKEN cannot be empty")
 
-        # Check valid prefix
-        if not (v.startswith("ghp_") or v.startswith("github_pat_")):
+        # Check valid prefix (personal access tokens, OAuth tokens, or GitHub app tokens)
+        valid_prefixes = ("ghp_", "github_pat_", "gho_", "ghs_")
+        if not v.startswith(valid_prefixes):
             raise ValueError(
-                "GITHUB_TOKEN must start with 'ghp_' or 'github_pat_'"
+                f"GITHUB_TOKEN must start with one of: {', '.join(valid_prefixes)}"
             )
 
         return v
