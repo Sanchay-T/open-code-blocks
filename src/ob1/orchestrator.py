@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
 import textwrap
 from dataclasses import dataclass
 from datetime import datetime
@@ -243,14 +242,7 @@ def _build_providers(provider_names: List[str], settings, console: Console) -> d
         if name == "claude":
             providers[name] = _build_claude_provider(settings, console)
         elif name == "cursor":
-            cli_path = shutil.which("cursor-agent")
-            if cli_path:
-                providers[name] = CursorProvider(console=console, cli_path=cli_path)
-            else:
-                console.print(
-                    "[yellow]cursor-agent CLI not found; falling back to Claude for the 'cursor' provider.[/yellow]"
-                )
-                providers[name] = _build_claude_provider(settings, console)
+            providers[name] = CursorProvider(console=console)
         elif name == "codex":
             api_key = settings.openai_api_key
             if not api_key:
