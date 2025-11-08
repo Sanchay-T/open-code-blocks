@@ -19,26 +19,29 @@ run_stage1.txt     # Copy/paste command that spawns 3 Claude agents
 
 ## Quick Start
 ```bash
-# Python env
+# Python env (run from repo root)
 python3.11 -m venv .venv
 source .venv/bin/activate
+pip install --upgrade pip
 pip install -e .
-cp .env.example .env  # then add GITHUB_TOKEN, CLAUDE_API_KEY, etc.
+cp .env.example .env  # then add the keys below
 
 # Tip: .env auto-discovery
 # ob1 will look for the nearest .env (and fall back to `gh auth token`),
 # so once you drop your keys into /path/to/open-code-blocks/.env you can
 # run commands from any subdirectory without re-exporting secrets.
-# Supported keys:
-#   CLAUDE_API_KEY
-#   CURSOR_API_KEY
-#   OPENAI_API_KEY (or CODEX_CLI_KEY)
+# Supported keys (see scripts/validate_keys.py):
+#   CLAUDE_API_KEY        -> Claude provider
+#   OPENAI_API_KEY        -> Codex provider (or CODEX_CLI_KEY)
+#   CURSOR_API_KEY        -> (optional) Cursor Cloud API; CLI login also works
+#   GITHUB_TOKEN          -> used to push branches + create PRs
 
 # Claude Agent SDK prerequisites (Node CLI)
 npm install -g @anthropic-ai/claude-code
 
-# Cursor CLI prerequisite (diff mode)
-curl https://cursor.com/install -fsS | bash   # installs `cursor-agent`
+# Cursor CLI prerequisite (diff mode). After install, run:
+#   cursor-agent login
+curl https://cursor.com/install -fsS | bash
 
 # Diagnostics
 ob1 doctor
@@ -47,7 +50,7 @@ ob1 run -m "Build a frontend login page" -k 3 --target https://github.com/Sancha
 # Claude probe helper
 ob1 claude-ping "Explain the repo" --system-prompt "You are concise."
 
-# Run 3 agents (Claude + Cursor + Codex) against the sandbox repo (default providers)
+# Run 3 agents (Claude + Cursor + Codex). This is Stage 1.
 ob1 run -m "Build a responsive login page" -k 3 \
   --target https://github.com/Sanchay-T/ob1-sandbox.git \
   --base main \
