@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import List, Optional
 
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from .change_guard import ChangeGuardError, ensure_changes_within_scope, list_changed_files
@@ -71,56 +70,40 @@ async def run_orchestrator(config: RunConfig, console: Console) -> None:
 
         provider_instances = _build_providers(config.providers, settings, console)
 
-        progress = Progress(
-            SpinnerColumn(),
-            TextColumn("[bold cyan]{task.fields[agent]}"),
-            TextColumn("{task.fields[status]}", style="magenta"),
-            transient=True,
-            console=console,
-        )
-
         tasks: List[asyncio.Task[AgentResult]] = []
-        task_lookup: dict[asyncio.Task[AgentResult], int] = {}
-
-        with progress:
-            for idx in range(config.k):
-                provider = config.providers[idx % len(config.providers)]
-                agent_name = f"{provider}-{idx + 1}"
-                branch = f"ob1/{run_id}/{agent_name}"
-                task = asyncio.create_task(
-                    _run_single_agent(
-                        agent_name=agent_name,
-                        branch=branch,
-                        provider_name=provider,
-                        provider=provider_instances[provider],
-                        config=config,
-                        repo_ctx=repo_ctx,
-                        repo_manager=repo_manager,
-                        gh_client=gh_client,
-                    )
+        for idx in range(config.k):
+            provider = config.providers[idx % len(config.providers)]
+            agent_name = f"{provider}-{idx + 1}"
+            branch = f"ob1/{run_id}/{agent_name}"
+            task = asyncio.create_task(
+                _run_single_agent(
+                    agent_name=agent_name,
+                    branch=branch,
+                    provider_name=provider,
+                    provider=provider_instances[provider],
+                    config=config,
+                    repo_ctx=repo_ctx,
+                    repo_manager=repo_manager,
+                    gh_client=gh_client,
                 )
-                progress_task = progress.add_task("", agent=agent_name, status="queued", start=False)
-                progress.start_task(progress_task)
-                tasks.append(task)
-                task_lookup[task] = progress_task
+            )
+            tasks.append(task)
 
-            for coro in asyncio.as_completed(tasks):
-                res = await coro
-                agent_results.append(res)
-                progress_task = task_lookup[coro]  # type: ignore[index]
-                progress.update(progress_task, agent=res.agent_name, status=res.status.upper())
-                if res.status == "success":
-                    status = "[green]success[/green]"
-                elif res.status == "dry-run":
-                    status = "[yellow]dry-run[/yellow]"
-                else:
-                    status = "[red]failed[/red]"
-                msg = f"{res.agent_name} → {status}"
-                if res.pr_url:
-                    msg += f" ({res.pr_url})"
-                elif res.error:
-                    msg += f" — {res.error}"
-                console.print(msg)
+        for future in asyncio.as_completed(tasks):
+            res = await future
+            agent_results.append(res)
+            if res.status == "success":
+                status = "[green]success[/green]"
+            elif res.status == "dry-run":
+                status = "[yellow]dry-run[/yellow]"
+            else:
+                status = "[red]failed[/red]"
+            msg = f"{res.agent_name} → {status}"
+            if res.pr_url:
+                msg += f" ({res.pr_url})"
+            elif res.error:
+                msg += f" — {res.error}"
+            console.print(msg)
 
         if gh_client:
             await gh_client.close()
