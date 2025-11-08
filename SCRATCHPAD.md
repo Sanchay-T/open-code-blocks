@@ -34,6 +34,7 @@ Free-form notes, decisions, and open questions while building the orchestrator.
   - Install deps, run tests/build.
   - Launch preview server + run Playwright to record short video.
   - Upload artifacts + comment with score & leaderboard update.
+- CLI now provides `ob1 qa --pr <n>` which feeds PR metadata + CI logs to Claude so the same agent can post a QA review comment (to be invoked from the workflow).
 
 ## Open Questions / To Discuss
 1. Claude agent interaction style: single-shot diff vs. interactive repair loop?

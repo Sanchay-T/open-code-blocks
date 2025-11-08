@@ -39,6 +39,7 @@ pytest
 - `ob1 mkworktree <branch>` – helper for manual worktree creation.
 - `ob1 claude-ping` – send a single prompt to Claude Agent SDK and inspect the JSON transcript.
 - `ob1 run` – orchestrates k Claude agents against a repo; clones the target if `--target` is provided.
+- `ob1 qa --pr <number>` – Stage 2 QA agent; fetches PR context + Playwright logs and posts a Claude-authored review.
 
 ## Notes
 - Uses git worktrees per agent branch, then pushes and opens PRs via the GitHub API.

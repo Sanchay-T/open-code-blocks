@@ -12,6 +12,7 @@ from .git_ops import is_repo, current_branch, has_remote, add_worktree, GitError
 from .orchestrator import RunConfig, run_orchestrator
 from .claude_probe import claude_ping as claude_ping_runner
 from .path_filters import parse_scope
+from .qa_agent import QAReviewConfig, run_qa_review
 
 
 app = typer.Typer(add_completion=False, help="OB1: run k AI agents in parallel and open PRs")
@@ -120,6 +121,34 @@ def claude_ping_command(
             console=console,
         )
     except Exception as exc:  # pylint: disable=broad-except
+        raise typer.Exit(1) from exc
+
+@app.command()
+def qa(
+    pr: int = typer.Option(..., "--pr", help="Pull request number to review"),
+    target: Optional[str] = typer.Option(None, help="Target repo URL; defaults to current repo"),
+    build_log: Optional[Path] = typer.Option(None, help="Path to build log output"),
+    test_log: Optional[Path] = typer.Option(None, help="Path to Playwright log output"),
+    artifacts: str = typer.Option(
+        "Playwright report, Playwright videos", help="Comma-separated artifact names to mention"
+    ),
+    env_file: Optional[Path] = typer.Option(None, help="Custom env file with tokens"),
+    dry_run: bool = typer.Option(False, help="Print review instead of posting"),
+):
+    """Run the Stage 2 QA Testing Agent on a PR."""
+    config = QAReviewConfig(
+        pr_number=pr,
+        repo_url=target,
+        build_log=build_log,
+        test_log=test_log,
+        artifact_note=artifacts,
+        env_file=env_file,
+        dry_run=dry_run,
+    )
+    try:
+        run_qa_review(config, console)
+    except Exception as exc:  # pylint: disable=broad-except
+        console.print(f"[red]QA failed:[/red] {exc}")
         raise typer.Exit(1) from exc
 
 

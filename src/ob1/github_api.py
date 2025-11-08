@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import httpx
 
@@ -81,3 +81,32 @@ class GitHubAPI:
         data = resp.json()
         return data.get("html_url") or ""
 
+    async def post_comment(self, repo: RepoRef, issue_number: int, body: str) -> None:
+        payload = {"body": body}
+        resp = await self._client.post(
+            f"/repos/{repo.owner}/{repo.name}/issues/{issue_number}/comments", json=payload
+        )
+        if resp.status_code not in {201, 200}:
+            raise GitHubAPIError(f"Failed to post comment: {resp.status_code} {resp.text}")
+
+    async def get_pull_request(self, repo: RepoRef, number: int) -> dict[str, Any]:
+        resp = await self._client.get(f"/repos/{repo.owner}/{repo.name}/pulls/{number}")
+        if resp.status_code != 200:
+            raise GitHubAPIError(f"Failed to fetch PR #{number}: {resp.status_code} {resp.text}")
+        return resp.json()
+
+    async def list_pull_files(self, repo: RepoRef, number: int) -> List[dict[str, Any]]:
+        files: List[dict[str, Any]] = []
+        page = 1
+        while True:
+            resp = await self._client.get(
+                f"/repos/{repo.owner}/{repo.name}/pulls/{number}/files", params={"page": page, "per_page": 100}
+            )
+            if resp.status_code != 200:
+                raise GitHubAPIError(f"Failed to list PR files: {resp.status_code} {resp.text}")
+            chunk = resp.json()
+            if not chunk:
+                break
+            files.extend(chunk)
+            page += 1
+        return files
