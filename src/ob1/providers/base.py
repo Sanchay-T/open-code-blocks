@@ -8,6 +8,7 @@ from typing import Protocol
 @dataclass
 class ProviderResult:
     transcript_path: Path | None
+    diff_text: str | None = None
 
 
 class AgentProvider(Protocol):
@@ -23,4 +24,3 @@ class AgentProvider(Protocol):
         repo_root: Path,
     ) -> ProviderResult:
         ...
-

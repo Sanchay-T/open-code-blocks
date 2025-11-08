@@ -1,2 +1,0 @@
-[console_scripts]
-ob1 = ob1.cli:main

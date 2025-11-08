@@ -65,7 +65,10 @@ def mkworktree(
 def run(
     message: str = typer.Option(..., "-m", help="Task for agents, e.g. 'Build a login page'"),
     k: int = typer.Option(1, "-k", help="Number of parallel agents"),
-    providers: str = typer.Option("claude", help="Comma-separated provider list"),
+    providers: str = typer.Option(
+        "claude,cursor,codex",
+        help="Comma-separated provider list (default: claude,cursor,codex)",
+    ),
     base: str = typer.Option("main", help="Base ref for branches"),
     scope: Optional[str] = typer.Option(None, help="Allowed path (glob) for changes"),
     target: Optional[str] = typer.Option(None, help="Target repo URL; defaults to current repo"),
