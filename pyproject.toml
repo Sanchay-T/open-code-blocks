@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ob1"
+version = "0.1.0"
+description = "Parallel AI SWE orchestrator CLI that runs k agents and opens PRs"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "Open Block Labs - OB1"}]
+dependencies = [
+  "typer[all]>=0.12.3",
+  "httpx>=0.27.2",
+  "pydantic>=2.8.2",
+  "pydantic-settings>=2.4.0",
+  "rich>=13.7.1",
+  "unidiff>=0.7.5"
+]
+
+[project.scripts]
+ob1 = "ob1.cli:app"
+
