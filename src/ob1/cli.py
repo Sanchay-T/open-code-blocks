@@ -8,11 +8,12 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from .git_ops import is_repo, current_branch, has_remote, add_worktree, GitError
+from .git_ops import is_repo, current_branch, has_remote, add_worktree, GitError, clone_repo
 from .orchestrator import RunConfig, run_orchestrator
 from .claude_probe import claude_ping as claude_ping_runner
 from .path_filters import parse_scope
-from .qa_agent import QAReviewConfig, run_qa_review
+from .qa_agent import QAReviewConfig, run_qa_review, run_autonomous_qa
+from .settings import get_settings
 
 
 app = typer.Typer(add_completion=False, help="OB1: run k AI agents in parallel and open PRs")
@@ -137,22 +138,88 @@ def qa(
     ),
     env_file: Optional[Path] = typer.Option(None, help="Custom env file with tokens"),
     dry_run: bool = typer.Option(False, help="Print review instead of posting"),
+    autonomous: bool = typer.Option(True, help="Use autonomous QA agent (generates dynamic tests)"),
+    worktree_dir: Optional[Path] = typer.Option(None, help="Custom worktree directory (for autonomous mode)"),
 ):
     """Run the Stage 2 QA Testing Agent on a PR."""
-    config = QAReviewConfig(
-        pr_number=pr,
-        repo_url=target,
-        build_log=build_log,
-        test_log=test_log,
-        artifact_note=artifacts,
-        env_file=env_file,
-        dry_run=dry_run,
-    )
-    try:
-        run_qa_review(config, console)
-    except Exception as exc:  # pylint: disable=broad-except
-        console.print(f"[red]QA failed:[/red] {exc}")
-        raise typer.Exit(1) from exc
+
+    if autonomous:
+        # Use new autonomous QA agent that generates feature-specific tests
+        console.print("[cyan]Running autonomous QA agent...[/cyan]")
+
+        try:
+            settings = get_settings(env_file)
+
+            if not settings.github_token:
+                console.print("[red]GITHUB_TOKEN required for autonomous QA[/red]")
+                raise typer.Exit(1)
+
+            if not settings.claude_api_key:
+                console.print("[red]CLAUDE_API_KEY required for autonomous QA[/red]")
+                raise typer.Exit(1)
+
+            # Determine repo URL
+            repo_url = target
+            if not repo_url:
+                from .git_ops import get_origin_url
+                repo_url = get_origin_url()
+
+            # Setup worktree path
+            if worktree_dir:
+                worktree_path = worktree_dir
+            else:
+                # Use current directory if it looks like the right repo
+                # In CI, this will be the checked-out PR branch
+                worktree_path = _cwd()
+
+            # Run autonomous QA
+            report = asyncio.run(run_autonomous_qa(
+                pr_number=pr,
+                repo_url=repo_url,
+                worktree_path=worktree_path,
+                github_token=settings.github_token,
+                claude_api_key=settings.claude_api_key,
+                console=console
+            ))
+
+            if dry_run:
+                console.print("\n[bold]QA Report:[/bold]\n")
+                console.print(report)
+            else:
+                # Post report to PR
+                from .github_api import GitHubAPI, RepoRef, parse_github_repo
+                owner, name = parse_github_repo(repo_url)
+                repo_ref = RepoRef(owner=owner, name=name, origin_url=repo_url)
+
+                async def post_comment():
+                    async with GitHubAPI(settings.github_token) as gh:
+                        await gh.post_comment(repo_ref, pr, report)
+
+                asyncio.run(post_comment())
+                console.print(f"[green]✓[/green] Posted autonomous QA report to PR #{pr}")
+
+        except Exception as exc:  # pylint: disable=broad-except
+            console.print(f"[red]Autonomous QA failed:[/red] {exc}")
+            import traceback
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
+            raise typer.Exit(1) from exc
+
+    else:
+        # Use legacy QA review mode
+        config = QAReviewConfig(
+            pr_number=pr,
+            repo_url=target,
+            build_log=build_log,
+            test_log=test_log,
+            artifact_note=artifacts,
+            env_file=env_file,
+            dry_run=dry_run,
+        )
+        try:
+            run_qa_review(config, console)
+        except Exception as exc:  # pylint: disable=broad-except
+            console.print(f"[red]QA failed:[/red] {exc}")
+            raise typer.Exit(1) from exc
 
 
 if __name__ == "__main__":
