@@ -72,16 +72,18 @@ class CodexProvider(AgentProvider):
                 if scope_issue:
                     failure_reason = scope_issue
                 else:
+                    line_count = len(diff_text.splitlines())
                     self._console.print(
-                        f"[{agent_name}] Codex produced diff with {len(diff_text.splitlines())} lines"
+                        f"[dim cyan]{agent_name}[/dim cyan] Generated {line_count}-line diff"
                     )
                     return ProviderResult(transcript_path=transcript_path, diff_text=diff_text)
 
             if attempt < self._max_attempts:
                 retry_prompt = self._build_retry_instruction(scope_patterns, failure_reason)
                 retry_messages.append({"role": "user", "content": retry_prompt})
-                self._console.print(f"[{agent_name}] Codex retrying (attempt {attempt + 1}/{self._max_attempts}) "
-                                    f"because {failure_reason}")
+                self._console.print(
+                    f"[dim yellow]{agent_name}[/dim yellow] Retrying ({attempt + 1}/{self._max_attempts}): {failure_reason}"
+                )
 
         failure_msg = f"Codex failed to produce a usable diff: {failure_reason}"
         if transcript_path:
@@ -128,9 +130,36 @@ class CodexProvider(AgentProvider):
         scope_clause = ""
         if self._scope_guard_enabled(scope_patterns):
             scope_clause = f" Allowed scope: {', '.join(scope_patterns)}. "
+
+        # Provide specific guidance for diff format errors
+        diff_format_help = ""
+        if "did not contain any file changes" in reason or "missing a ```diff```" in reason:
+            diff_format_help = """
+
+Ensure your diff follows this EXACT format:
+
+```diff
+diff --git a/path/to/file.js b/path/to/file.js
+--- a/path/to/file.js
++++ b/path/to/file.js
+@@ -1,3 +1,4 @@
+ existing line
++new line
+ another existing line
+```
+
+Requirements:
+- Use unified diff format with '---' and '+++' headers
+- Include correct line counts in @@ -old_start,old_count +new_start,new_count @@
+- Prefix added lines with '+'
+- Prefix removed lines with '-'
+- Leave context lines unmodified (no prefix or single space)
+"""
+
         return (
             f"The previous diff could not be used because {reason}. "
             f"{scope_clause}Regenerate a valid unified diff inside a ```diff``` block and return only that diff."
+            f"{diff_format_help}"
         )
 
     @staticmethod
@@ -138,7 +167,10 @@ class CodexProvider(AgentProvider):
         try:
             patch = PatchSet(diff_text)
             return patch if patch else None
-        except UnidiffParseError:
+        except (UnidiffParseError, UnboundLocalError, ValueError, AttributeError):
+            # UnidiffParseError: standard diff parsing error
+            # UnboundLocalError: malformed diff causing internal unidiff error
+            # ValueError/AttributeError: other malformed diff issues
             return None
 
     def _diff_from_file_blocks(self, content: str, repo_root: Path) -> Optional[str]:

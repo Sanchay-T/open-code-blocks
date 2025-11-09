@@ -69,12 +69,11 @@ class CursorProvider(AgentProvider):
             diff_output = run_git("diff", cwd=worktree)
             file_count = len([line for line in status.splitlines() if line.strip()])
             self._console.print(
-                f"[{agent_name}] Cursor modified {file_count} file(s); using git diff without reapplying."
+                f"[dim cyan]{agent_name}[/dim cyan] Modified {file_count} file(s)"
             )
             return ProviderResult(
                 transcript_path=transcript_path,
                 diff_text=diff_output,
-                apply_diff=False,
             )
 
         diff_text = extract_diff_block(stdout)
@@ -85,13 +84,16 @@ class CursorProvider(AgentProvider):
             )
 
         sanitized_diff, dropped_blocks = _sanitize_cursor_diff(diff_text, worktree)
-        for idx, block in enumerate(dropped_blocks, start=1):
-            preview = "\n".join(block.splitlines()[:5])
-            self._console.print(f"[{agent_name}] Dropped malformed diff block #{idx}:\n{preview}")
+        # Only show warnings if blocks were dropped (less noise)
+        if dropped_blocks:
+            self._console.print(
+                f"[dim yellow]{agent_name}[/dim yellow] Sanitized diff ({len(dropped_blocks)} invalid blocks dropped)"
+            )
         if not sanitized_diff.strip():
             raise RuntimeError("cursor-agent produced diff output, but no valid hunks remained after sanitization.")
 
-        self._console.print(f"[{agent_name}] Cursor diff contains {len(sanitized_diff.splitlines())} lines after cleanup")
+        line_count = len(sanitized_diff.splitlines())
+        self._console.print(f"[dim cyan]{agent_name}[/dim cyan] Generated {line_count}-line diff")
         return ProviderResult(transcript_path=transcript_path, diff_text=sanitized_diff)
 
 
