@@ -49,14 +49,23 @@ class ClaudeProvider(AgentProvider):
         prompt: str,
         worktree: Path,
         repo_root: Path,
+        scope_patterns: list[str],
     ) -> ProviderResult:
-        transcript = await self._run_query(agent_name, prompt, worktree)
+        transcript: List[object] = []
+        try:
+            transcript = await self._run_query(agent_name, prompt, worktree)
+        except Exception as exc:  # noqa: BLE001
+            events = transcript or getattr(exc, "_ob1_events", [])
+            if events:
+                self._persist_transcript(repo_root, branch, events)
+            raise
+
         transcript_path = self._persist_transcript(repo_root, branch, transcript)
         return ProviderResult(transcript_path=transcript_path)
 
     async def _run_query(self, agent_name: str, prompt: str, worktree: Path) -> List[object]:
         os.environ["CLAUDE_API_KEY"] = self._api_key
-        os.environ.setdefault("ANTHROPIC_API_KEY", self._api_key)
+        os.environ["ANTHROPIC_API_KEY"] = self._api_key
         options = ClaudeAgentOptions(
             allowed_tools=self._allowed_tools or None,
             permission_mode=self._permission_mode,
@@ -72,6 +81,10 @@ class ClaudeProvider(AgentProvider):
                 self._log_event(agent_name, message)
         except ClaudeSDKError as exc:
             self._console.print(f"[red]Claude SDK error ({agent_name}):[/red] {exc}")
+            setattr(exc, "_ob1_events", events)
+            raise
+        except Exception as exc:  # noqa: BLE001
+            setattr(exc, "_ob1_events", events)
             raise
         return events
 

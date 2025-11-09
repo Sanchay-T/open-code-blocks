@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
@@ -60,6 +61,8 @@ class TargetRepoManager:
         return RepoContext(root=self._root, base_branch=self.base_branch, repo_ref=repo_ref, is_cloned=self._is_cloned)
 
     def cleanup(self) -> None:
+        if os.environ.get("OB1_PRESERVE_TMP") == "1":
+            return
         if self._is_cloned and self._tmp_root and self._tmp_root.exists():
             shutil.rmtree(self._tmp_root, ignore_errors=True)
 
@@ -100,4 +103,3 @@ class TargetRepoManager:
         if self._root is None:
             raise GitError("Repository not prepared")
         run_git("push", "-u", "origin", f"{branch}:{branch}", cwd=self._root)
-

@@ -1,0 +1,50 @@
+# Example GitHub Actions workflow showing API-based automation
+
+name: Claude Automation Example
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install anthropic python-dotenv
+
+      - name: Run Claude automation
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          CI: "true"  # Force API mode in CI
+        run: |
+          python claude_wrapper.py
+
+      # Example: Use the wrapper in your own script
+      - name: Custom automation
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        run: |
+          python -c "
+          import asyncio
+          import os
+          from claude_wrapper import ClaudeWrapper
+
+          async def main():
+              # Auto-detects API mode in CI
+              client = ClaudeWrapper(use_sdk=False)
+              response = await client.query_simple('Review this code briefly')
+              print(response)
+
+          asyncio.run(main())
+          "

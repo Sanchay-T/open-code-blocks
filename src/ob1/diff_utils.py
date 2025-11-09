@@ -28,8 +28,6 @@ def extract_diff_block(text: str) -> str | None:
     if not match:
         return None
     diff = match.group(1).strip()
-    if not diff.startswith("diff") and not diff.startswith("---"):
-        diff = "diff --git a/placeholder b/placeholder\n" + diff
     if not diff.endswith("\n"):
         diff += "\n"
     return diff

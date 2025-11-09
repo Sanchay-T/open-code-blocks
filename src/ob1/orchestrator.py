@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import textwrap
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -51,6 +52,7 @@ async def run_orchestrator(config: RunConfig, console: Console) -> None:
         raise ValueError("k must be >= 1")
 
     settings = get_settings(config.env_file)
+    _seed_process_env(settings)
     if not config.dry_run and not settings.github_token:
         raise RuntimeError("GITHUB_TOKEN is not set; cannot create pull requests")
 
@@ -145,8 +147,9 @@ async def _run_single_agent(
                 prompt=prompt_text,
                 worktree=worktree_path,
                 repo_root=repo_ctx.root,
+                scope_patterns=config.scope_patterns,
             )
-            if provider_result and provider_result.diff_text:
+            if provider_result and provider_result.diff_text and provider_result.apply_diff:
                 await asyncio.to_thread(apply_unified_diff, provider_result.diff_text, worktree_path)
             files = await asyncio.to_thread(list_changed_files, worktree_path)
             if not files:
@@ -223,11 +226,13 @@ def _build_providers(provider_names: List[str], settings, console: Console) -> d
     providers: dict[str, AgentProvider] = {}
     for name in set(provider_names):
         if name == "claude":
+            _log_provider_secret(console, "claude", bool(getattr(settings, "claude_api_key", None)))
             providers[name] = _build_claude_provider(settings, console)
         elif name == "cursor":
             providers[name] = CursorProvider(console=console)
         elif name == "codex":
             api_key = settings.openai_api_key
+            _log_provider_secret(console, "codex", bool(api_key))
             if not api_key:
                 raise RuntimeError("OPENAI_API_KEY (or CODEX_CLI_KEY) is required for provider 'codex'")
             providers[name] = CodexProvider(api_key=api_key, console=console)
@@ -255,3 +260,19 @@ def _build_claude_provider(settings, console: Console) -> ClaudeProvider:
             "BashOutput",
         ],
     )
+
+
+def _seed_process_env(settings) -> None:
+    env_mapping = {
+        "CLAUDE_API_KEY": getattr(settings, "claude_api_key", None),
+        "ANTHROPIC_API_KEY": getattr(settings, "claude_api_key", None),
+        "OPENAI_API_KEY": getattr(settings, "openai_api_key", None),
+        "CURSOR_API_KEY": getattr(settings, "cursor_api_key", None),
+    }
+    for key, value in env_mapping.items():
+        if value and not os.environ.get(key):
+            os.environ[key] = value
+
+def _log_provider_secret(console: Console, provider_name: str, present: bool) -> None:
+    status = "present" if present else "missing"
+    console.log(f"[provider-init] {provider_name} credential {status}")

@@ -9,8 +9,10 @@ from __future__ import annotations
 import base64
 import os
 import sys
+from pathlib import Path
 
 import httpx
+from dotenv import load_dotenv
 
 OPENAI_MODELS_URL = "https://api.openai.com/v1/models"
 CURSOR_ME_URL = "https://api.cursor.com/v0/me"
@@ -56,6 +58,12 @@ def check_cursor() -> bool:
 
 
 def main() -> None:
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"Loaded secrets from {env_path}")
+    else:
+        print("Warning: .env not found; relying on current environment.", file=sys.stderr)
     print("Running credential sanity checks...\n")
     ok_openai = check_openai()
     ok_cursor = check_cursor()
