@@ -86,6 +86,42 @@ pytest
 - **Setup Guide**: Copy `.env.example` to `.env` and add your API keys
 - **Examples**: Check [`examples/`](examples/) for Playwright and pytest examples
 
+## Multi-Agent Development Workflow
+
+This repository uses **agent-specific development branches** to enable parallel AI development:
+
+### Agent Branches
+
+| Agent | Branch | Responsibilities | Workflow File |
+|-------|--------|-----------------|---------------|
+| **Claude** | `claude-main` | Documentation, architecture, analysis, code audits | [`.claude/claude.md`](.claude/claude.md) |
+| **Codex** | `codex-main` | Implementation, features, core functionality | [`.codex/codex.md`](.codex/codex.md) |
+| **Human** | `main` | Production code, final review, merging | - |
+
+### How It Works
+
+```
+main (protected, production)
+├── claude-main (Claude's source of truth)
+│   ├── claude/docs-cleanup
+│   └── claude/add-architecture-guide
+└── codex-main (Codex's source of truth)
+    ├── codex/implement-provider
+    └── codex/fix-orchestrator
+```
+
+**Workflow:**
+1. Each agent works on their own `agent-main` branch
+2. Agents create feature branches: `agent/task-description`
+3. Work is merged back to `agent-main`
+4. Human reviews and merges `agent-main` → `main` via PR
+
+**For AI Agents:**
+- 📖 **Claude**: Read `.claude/claude.md` at the start of every session
+- 📖 **Codex**: Read `.codex/codex.md` at the start of every session
+
+These files contain persistent instructions, workflow guidelines, and session checklists.
+
 ## Notes
 - Uses git worktrees per agent branch, then pushes and opens PRs via the GitHub API.
 - Agent prompts include repo context + scope guardrails; only files matching `--scope` are allowed.
