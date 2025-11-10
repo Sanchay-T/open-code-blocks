@@ -110,3 +110,49 @@ class GitHubAPI:
             files.extend(chunk)
             page += 1
         return files
+
+    async def create_comment(self, repo: RepoRef, pr_number: int, body: str) -> dict[str, Any]:
+        """Create a comment on a pull request"""
+        resp = await self._client.post(
+            f"/repos/{repo.owner}/{repo.name}/issues/{pr_number}/comments",
+            json={"body": body}
+        )
+        if resp.status_code != 201:
+            raise GitHubAPIError(f"Failed to create comment: {resp.status_code} {resp.text}")
+        return resp.json()
+
+    async def get_file_content(self, repo: RepoRef, path: str, ref: str = "HEAD") -> Optional[str]:
+        """
+        Fetch the contents of a file from the repository
+
+        Args:
+            repo: Repository reference
+            path: Path to the file in the repository
+            ref: Git ref (branch, tag, or commit SHA) to fetch from
+
+        Returns:
+            File content as string, or None if file not found
+        """
+        import base64
+
+        resp = await self._client.get(
+            f"/repos/{repo.owner}/{repo.name}/contents/{path}",
+            params={"ref": ref}
+        )
+
+        if resp.status_code == 404:
+            return None
+        elif resp.status_code != 200:
+            raise GitHubAPIError(f"Failed to fetch file content: {resp.status_code} {resp.text}")
+
+        data = resp.json()
+        if data.get("type") != "file":
+            return None
+
+        # Decode base64 content
+        content_b64 = data.get("content", "")
+        try:
+            content = base64.b64decode(content_b64).decode("utf-8")
+            return content
+        except Exception as e:
+            raise GitHubAPIError(f"Failed to decode file content: {e}")

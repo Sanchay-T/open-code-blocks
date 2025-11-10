@@ -17,8 +17,8 @@ class RepoContext:
 def gather_repo_context(
     worktree: Path,
     patterns: Iterable[str],
-    max_files: int = 8,
-    max_chars_per_file: int = 600,
+    max_files: int = 20,  # Increased from 8
+    max_chars_per_file: int = 2000,  # Increased from 600
 ) -> RepoContext:
     matched_files: List[Path] = []
     ignore_roots = {".git", ".ob1", "node_modules"}
@@ -69,7 +69,7 @@ def build_prompt_text(task: str, scope_patterns: Iterable[str], context: RepoCon
     file_section = "\n\n".join(context.file_snippets)
     package_section = context.package_summary
     instructions = f"""
-You are ob1, an elite frontend engineer. Implement the user request inside the allowed scope only.
+You are ob1, an elite frontend engineer tasked with implementing features with production-level quality.
 
 Task:
 {task}
@@ -77,20 +77,43 @@ Task:
 Constraints:
 - Only edit files matching: {scope_text}
 - Changes must be buildable via `npm install && npm run build` inside `frontend/`.
-- Keep code clean, typed (where relevant), and ensure responsive design.
-- If a new page/component is created, update routing or App.jsx so it renders.
+- Keep code clean, properly typed (TypeScript/JSDoc), and ensure responsive design.
+- If a new page/component is created, update routing configuration so it's accessible.
+- IMPORTANT: Create Playwright test files for any new routes or significant features.
 
 Project Summary:
 {package_section}
 
-Important Files:
+Current Codebase Context:
 {file_section}
 
-Deliverables:
-1. Implement the feature completely, including UI and minimal styling.
-2. Provide client-side validation and friendly error states.
-3. Keep copy concise and professional.
+Critical Requirements:
+1. **Code Quality**: Write clean, maintainable code following existing patterns in the codebase.
+2. **Complete Implementation**: Implement the full feature including UI, logic, validation, and error handling.
+3. **Routing Integration**: If adding new pages, ensure they're properly integrated into the routing system (React Router, etc.).
+4. **Test Coverage**: For new routes/features, create Playwright tests in `frontend/tests/` directory:
+   - Test file naming: `<feature-name>.spec.ts`
+   - Test critical user flows (navigation, form submission, error states)
+   - Include proper assertions for UI elements
+5. **Consistency**: Maintain styling consistency with existing components.
+6. **Build Validation**: Ensure `npm run build` succeeds after changes.
 
-When finished, ensure `npm run build` would succeed. Do not remove unrelated code.
+Structure Guidelines:
+- Components: Place in `frontend/src/components/` (organized by feature if appropriate)
+- Pages: Place in `frontend/src/pages/` or appropriate routing directory
+- Tests: Place in `frontend/tests/` with descriptive names
+- Styles: Follow existing styling approach (CSS modules, Tailwind, etc.)
+
+Never:
+- Remove or break existing unrelated functionality
+- Create routes that don't exist (like /dashboard/root without implementing /dashboard first)
+- Leave incomplete implementations
+- Skip error handling or loading states
+
+When finished, the application should:
+- Build successfully (`npm run build`)
+- Have working routing to all new pages
+- Include basic test coverage for new features
+- Maintain visual consistency with existing UI
 """
     return instructions.strip()

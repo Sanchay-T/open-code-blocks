@@ -212,9 +212,6 @@ async def test_autonomous_qa_agent():
         return False
 
     finally:
-        # Cleanup
-        console.print(f"\n[dim]Cleaning up temporary files...[/dim]")
-
         # Stop preview server
         try:
             preview_proc.terminate()
@@ -222,12 +219,25 @@ async def test_autonomous_qa_agent():
         except:
             pass
 
-        # Remove temp directory
+        # Copy videos to a permanent location BEFORE cleanup
+        console.print(f"\n[dim]Copying videos to current directory...[/dim]")
         try:
-            shutil.rmtree(temp_dir)
-            console.print(f"[dim]Removed {temp_dir}[/dim]")
+            video_dir = worktree_path / "frontend" / "test-results"
+            if video_dir.exists():
+                videos = list(video_dir.glob("**/*.webm"))
+                for video in videos:
+                    dest = Path.cwd() / f"qa-test-{video.name}"
+                    shutil.copy2(video, dest)
+                    console.print(f"[green]✓[/green] Saved video: {dest}")
         except Exception as e:
-            console.print(f"[yellow]Warning: Could not remove {temp_dir}: {e}[/yellow]")
+            console.print(f"[yellow]Warning: Could not copy videos: {e}[/yellow]")
+
+        # Cleanup
+        console.print(f"\n[dim]Cleaning up temporary files...[/dim]")
+
+        # Keep temp directory for inspection
+        console.print(f"[cyan]📁 Test files kept at: {temp_dir}[/cyan]")
+        console.print(f"[dim]To clean up manually: rm -rf {temp_dir}[/dim]")
 
 
 if __name__ == "__main__":

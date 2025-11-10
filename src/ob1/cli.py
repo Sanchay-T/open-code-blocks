@@ -14,6 +14,7 @@ from .claude_probe import claude_ping as claude_ping_runner
 from .path_filters import parse_scope
 from .qa_agent import QAReviewConfig, run_qa_review, run_autonomous_qa
 from .settings import get_settings
+from .cli_status import status_command
 
 
 app = typer.Typer(add_completion=False, help="OB1: run k AI agents in parallel and open PRs")
@@ -75,6 +76,8 @@ def run(
     target: Optional[str] = typer.Option(None, help="Target repo URL; defaults to current repo"),
     env_file: Optional[Path] = typer.Option(None, help="Path to env file with tokens"),
     dry_run: bool = typer.Option(False, help="Plan actions without applying"),
+    issue: Optional[int] = typer.Option(None, "--issue", help="GitHub issue number to associate with PRs"),
+    continue_pr: Optional[int] = typer.Option(None, "--continue-pr", help="PR number to continue working on"),
 ):
     """Run k agents in parallel (initial implementation)."""
     provider_list = [p.strip() for p in providers.split(",") if p.strip()]
@@ -92,6 +95,8 @@ def run(
         target_url=target,
         dry_run=dry_run,
         env_file=env_file,
+        issue_number=issue,
+        continue_pr=continue_pr,
     )
 
     try:
@@ -220,6 +225,10 @@ def qa(
         except Exception as exc:  # pylint: disable=broad-except
             console.print(f"[red]QA failed:[/red] {exc}")
             raise typer.Exit(1) from exc
+
+
+# Register status command
+app.command(name="status")(status_command)
 
 
 if __name__ == "__main__":
