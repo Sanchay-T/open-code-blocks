@@ -3,18 +3,16 @@
 Parallel AI SWE orchestration CLI (`ob1`) plus supporting assets for the OB1 coding assignment.
 
 ## Repo Layout
-- **This repo** – houses the Python CLI, docs, and examples.
+- **This repo** – houses the Python CLI, API documentation, and examples.
 - **Target repo (`Sanchay-T/ob1-sandbox`)** – Vite/React sandbox where agents open PRs (Stage 1 output + Stage 2 QA workflow live there).
 
 ```
 docs/
-  guides/          # Quick-starts, integration notes, exec summary
-  research/        # Provider/API research notes
+  api/             # Official API references for Claude, Codex, and Cursor
 examples/          # Standalone pytest/playwright/GitHub Actions samples
 src/ob1/           # CLI source
 tests/             # Unit tests for guardrails/context
-run_stage1.txt     # Copy/paste command that spawns 3 Claude agents
-                   # (now defaults to Claude + Cursor + Codex)
+.env.example       # Template for API keys (copy to .env)
 ```
 
 ## Quick Start
@@ -76,11 +74,17 @@ pytest
 
 ## Providers & Keys
 
-| Provider | Env Variable(s)                     | Description                                    |
-|----------|--------------------------------------|------------------------------------------------|
-| Claude   | `CLAUDE_API_KEY`                     | Claude Agent SDK with repo-aware tool access   |
-| Cursor   | *(CLI binary `cursor-agent`)*        | Runs Cursor CLI in non-interactive diff mode (falls back to Claude if missing) |
-| Codex    | `OPENAI_API_KEY` or `CODEX_CLI_KEY`  | GPT‑4o Codex chat completions (diff contract)  |
+| Provider | Env Variable(s)                     | Description                                    | API Reference |
+|----------|--------------------------------------|------------------------------------------------|---------------|
+| Claude   | `CLAUDE_API_KEY`                     | Claude Agent SDK with repo-aware tool access   | [`docs/api/CLAUDE_AGENT_SDK.md`](docs/api/CLAUDE_AGENT_SDK.md) |
+| Cursor   | *(CLI binary `cursor-agent`)*        | Runs Cursor CLI in non-interactive diff mode (falls back to Claude if missing) | [`docs/api/CURSOR_API.md`](docs/api/CURSOR_API.md) |
+| Codex    | `OPENAI_API_KEY` or `CODEX_CLI_KEY`  | GPT‑4o Codex chat completions (diff contract)  | [`docs/api/CODEX_SDK.md`](docs/api/CODEX_SDK.md) |
+
+## Documentation
+
+- **API References**: See [`docs/api/`](docs/api/) for official API documentation for each provider
+- **Setup Guide**: Copy `.env.example` to `.env` and add your API keys
+- **Examples**: Check [`examples/`](examples/) for Playwright and pytest examples
 
 ## Notes
 - Uses git worktrees per agent branch, then pushes and opens PRs via the GitHub API.
